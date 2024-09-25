@@ -1,0 +1,76 @@
+services:
+  opensearch:
+    image: opensearchproject/opensearch
+    container_name: opensearch
+    environment:
+      - bootstrap.memory_lock=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      - plugins.security.disabled=true
+      - discovery.type=single-node
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=Developer123@
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - /data:/etc/data
+    ports:
+      - "9200:9200"
+    networks:
+      - opensearch-network
+    healthcheck:
+      test: curl --fail http://localhost:9200 || exit 1
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
+    
+    
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards
+    container_name: opensearch-dashboards
+    environment:
+      OPENSEARCH_HOSTS: http://opensearch:9200
+    ports:
+      - '5601:5601'
+    networks:
+      - opensearch-network
+
+
+  fluent-bit:
+    image: fluent/fluent-bit
+    container_name: fluent-bit
+    volumes:
+      - ./fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
+    networks:
+      - opensearch-network
+    depends_on:
+      - opensearch
+    ports:
+      - "2020:2020"
+    environment:
+      - FLUENT_ELASTICSEARCH_HOST=opensearch
+      - FLUENT_ELASTICSEARCH_PORT=9200
+
+  python-index:
+    build:
+      context: ./python_index
+      dockerfile: Dockerfile
+    container_name: python-index
+    volumes:
+      - ./python_index:/app
+    networks:
+      - opensearch-network
+    depends_on:
+      - opensearch
+    command: python main.py
+
+networks:
+  opensearch-network:
+    driver: bridge
+
+
+
